@@ -468,7 +468,6 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                                  CGFloat imageWidth = phAsset.pixelWidth;
                                  CGFloat imageHeight = phAsset.pixelHeight;
                                  
-                                 [lock lock];
                                  [selections addObject:[self createAttachmentResponse:filePath
                                                                             withWidth:@(imageWidth)
                                                                            withHeight:@(imageHeight)
@@ -477,8 +476,6 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                                                                              withData:[[self.options objectForKey:@"includeBase64"] boolValue] ? dataString : [NSNull null]
                                                         ]];
                                  processed++;
-                                 [lock unlock];
-                                 
                              } else {//静态图
                                  ImageResult *imageResult = [self.compression compressImage:[UIImage imageWithData:imageData] withOptions:self.options];
                                  NSString *filePath = [self persistFile:imageResult.data];
@@ -500,9 +497,9 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                                                                              withData:[[self.options objectForKey:@"includeBase64"] boolValue] ? [imageResult.data base64EncodedStringWithOptions:0] : [NSNull null]
                                                         ]];
                                  processed++;
-                                 [lock unlock];
                              }
-
+                             [lock unlock];
+                             
                              if (processed == [assets count]) {
 
                                  [indicatorView stopAnimating];
