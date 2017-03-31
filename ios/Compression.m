@@ -80,6 +80,8 @@
         result.image = resizedImage;
         return result;
     }
+    
+    return result;
 }
 
 - (ImageResult*) compressImage:(UIImage*)image
