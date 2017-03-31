@@ -59,8 +59,8 @@ RCT_EXPORT_MODULE();
                                 @"useFrontCamera": @NO,
                                 @"compressImageQuality": @1,
                                 @"compressVideoPreset": @"MediumQuality",
-                                @"loadingLabelText": @"Processing assets...",
-                                @"mediaType": @"any",
+                                @"loadingLabelText": @"正在处理...",
+                                @"mediaType": @"any",//数据类型（photo、video、any）
                                 @"showsSelectedCount": @YES
                                 };
         self.compression = [[Compression alloc] init];
@@ -406,7 +406,7 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
     options.synchronous = NO;
     options.networkAccessAllowed = YES;
 
-    if ([[[self options] objectForKey:@"multiple"] boolValue]) {
+    if ([[[self options] objectForKey:@"multiple"] boolValue]) {//多选情况
         NSMutableArray *selections = [[NSMutableArray alloc] init];
 
         [self showActivityIndicator:^(UIActivityIndicatorView *indicatorView, UIView *overlayView) {
@@ -415,7 +415,7 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
 
             for (PHAsset *phAsset in assets) {
 
-                if (phAsset.mediaType == PHAssetMediaTypeVideo) {
+                if (phAsset.mediaType == PHAssetMediaTypeVideo) {//选择了视频
                     [self getVideoAsset:phAsset completion:^(NSDictionary* video) {
                         dispatch_async(dispatch_get_main_queue(), ^{
                             [lock lock];
@@ -443,7 +443,7 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                             }
                         });
                     }];
-                } else {
+                } else {//选择了图片
                     [manager
                      requestImageDataForAsset:phAsset
                      options:options
@@ -452,27 +452,56 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                          dispatch_async(dispatch_get_main_queue(), ^{
                              [lock lock];
                              
-                             ImageResult *imageResult = [self.compression compressImage:[UIImage imageWithData:imageData] withOptions:self.options];
-                             NSString *filePath = [self persistFile:imageResult.data];
-                             
-                             if (filePath == nil) {
-                                 [indicatorView stopAnimating];
-                                 [overlayView removeFromSuperview];
-                                 [imagePickerController dismissViewControllerAnimated:YES completion:[self waitAnimationEnd:^{
-                                     self.reject(ERROR_CANNOT_SAVE_IMAGE_KEY, ERROR_CANNOT_SAVE_IMAGE_MSG, nil);
-                                 }]];
-                                 return;
+                             if ([[dataUTI lowercaseString] hasSuffix:@"gif"]) {//GIF图，单独处理
+                                 NSString *filePath = [self persistFileWithData:imageData extension:@".gif"];
+                                 if (filePath == nil) {
+                                     [indicatorView stopAnimating];
+                                     [overlayView removeFromSuperview];
+                                     [imagePickerController dismissViewControllerAnimated:YES completion:[self waitAnimationEnd:^{
+                                         self.reject(ERROR_CANNOT_SAVE_IMAGE_KEY, ERROR_CANNOT_SAVE_IMAGE_MSG, nil);
+                                     }]];
+                                     return;
+                                 }
+                                 NSString *dataString = [imageData base64EncodedStringWithOptions:0];
+                                 
+                                 //原始尺寸
+                                 CGFloat imageWidth = phAsset.pixelWidth;
+                                 CGFloat imageHeight = phAsset.pixelHeight;
+                                 
+                                 [lock lock];
+                                 [selections addObject:[self createAttachmentResponse:filePath
+                                                                            withWidth:@(imageWidth)
+                                                                           withHeight:@(imageHeight)
+                                                                             withMime:@"image/gif"
+                                                                             withSize:[NSNumber numberWithUnsignedInteger:imageData.length]
+                                                                             withData:[[self.options objectForKey:@"includeBase64"] boolValue] ? dataString : [NSNull null]
+                                                        ]];
+                                 processed++;
+                                 [lock unlock];
+                                 
+                             } else {//静态图
+                                 ImageResult *imageResult = [self.compression compressImage:[UIImage imageWithData:imageData] withOptions:self.options];
+                                 NSString *filePath = [self persistFile:imageResult.data];
+                                 
+                                 if (filePath == nil) {
+                                     [indicatorView stopAnimating];
+                                     [overlayView removeFromSuperview];
+                                     [imagePickerController dismissViewControllerAnimated:YES completion:[self waitAnimationEnd:^{
+                                         self.reject(ERROR_CANNOT_SAVE_IMAGE_KEY, ERROR_CANNOT_SAVE_IMAGE_MSG, nil);
+                                     }]];
+                                     return;
+                                 }
+                                 
+                                 [selections addObject:[self createAttachmentResponse:filePath
+                                                                            withWidth:imageResult.width
+                                                                           withHeight:imageResult.height
+                                                                             withMime:imageResult.mime
+                                                                             withSize:[NSNumber numberWithUnsignedInteger:imageResult.data.length]
+                                                                             withData:[[self.options objectForKey:@"includeBase64"] boolValue] ? [imageResult.data base64EncodedStringWithOptions:0] : [NSNull null]
+                                                        ]];
+                                 processed++;
+                                 [lock unlock];
                              }
-
-                             [selections addObject:[self createAttachmentResponse:filePath
-                                                                        withWidth:imageResult.width
-                                                                       withHeight:imageResult.height
-                                                                         withMime:imageResult.mime
-                                                                         withSize:[NSNumber numberWithUnsignedInteger:imageResult.data.length]
-                                                                         withData:[[self.options objectForKey:@"includeBase64"] boolValue] ? [imageResult.data base64EncodedStringWithOptions:0] : [NSNull null]
-                                                    ]];
-                             processed++;
-                             [lock unlock];
 
                              if (processed == [assets count]) {
 
@@ -488,11 +517,11 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                 }
             }
         }];
-    } else {
+    } else {//单个数据（如照相）
         PHAsset *phAsset = [assets objectAtIndex:0];
 
         [self showActivityIndicator:^(UIActivityIndicatorView *indicatorView, UIView *overlayView) {
-            if (phAsset.mediaType == PHAssetMediaTypeVideo) {
+            if (phAsset.mediaType == PHAssetMediaTypeVideo) {//拍摄了视频
                 [self getVideoAsset:phAsset completion:^(NSDictionary* video) {
                     dispatch_async(dispatch_get_main_queue(), ^{
                         [indicatorView stopAnimating];
@@ -506,7 +535,7 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                         }]];
                     });
                 }];
-            } else {
+            } else {//照片
                 [manager
                  requestImageDataForAsset:phAsset
                  options:options
@@ -544,7 +573,7 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
 
     if ([[[self options] objectForKey:@"cropping"] boolValue]) {
         [self startCropping:image];
-    } else {
+    } else {//单个照片处理
         ImageResult *imageResult = [self.compression compressImage:image withOptions:self.options];
         NSString *filePath = [self persistFile:imageResult.data];
         if (filePath == nil) {
@@ -682,6 +711,29 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
         return nil;
     }
 
+    return filePath;
+}
+
+/**
+ 将图片数据写入本地
+ 
+ @param data 图片数据
+ @param extension 扩展类型
+ @return 文件保存路径
+ */
+- (NSString*)persistFileWithData:(NSData*)data
+                       extension:(NSString *)extension {
+    // create temp file
+    NSString *tmpDirFullPath = [self getTmpDirectory];
+    NSString *filePath = [tmpDirFullPath stringByAppendingString:[[NSUUID UUID] UUIDString]];
+    filePath = [filePath stringByAppendingString:extension];
+    
+    // save file
+    BOOL status = [data writeToFile:filePath atomically:YES];
+    if (!status) {
+        return nil;
+    }
+    
     return filePath;
 }
 

@@ -35,7 +35,7 @@
     NSNumber *maxHeight = [options valueForKey:@"compressImageMaxHeight"];
     ImageResult *result = [[ImageResult alloc] init];
     
-    if ([maxWidth integerValue] == 0 || [maxWidth integerValue] == 0) {
+    if ([maxWidth integerValue] == 0 && [maxWidth integerValue] == 0) {
         result.width = [NSNumber numberWithFloat:image.size.width];
         result.height = [NSNumber numberWithFloat:image.size.height];
         result.image = image;
@@ -45,21 +45,40 @@
     CGFloat oldWidth = image.size.width;
     CGFloat oldHeight = image.size.height;
     
-    CGFloat scaleFactor = (oldWidth > oldHeight) ? [maxWidth floatValue] / oldWidth : [maxHeight floatValue] / oldHeight;
     
-    int newWidth = oldWidth * scaleFactor;
-    int newHeight = oldHeight * scaleFactor;
-    CGSize newSize = CGSizeMake(newWidth, newHeight);
+    //指定了最大宽度
+    if ((maxWidth > 0) &&
+        (oldWidth > maxWidth)) {//需要裁剪 且 原图尺寸大于最大设定尺寸
+        //裁剪图片
+        CGFloat scaledImageWidth = maxWidth;
+        CGFloat scaledImageHeight = oldHeight / oldWidth * scaledImageWidth;
+        UIImage *resizedImage = [image resizedImageToFitInSize:CGSizeMake(scaledImageWidth, scaledImageHeight) scaleIfSmaller:NO];
+        
+        result.width = [NSNumber numberWithFloat:scaledImageWidth];
+        result.height = [NSNumber numberWithFloat:scaledImageHeight];
+        result.image = resizedImage;
+        return result;
+    }
     
-    UIGraphicsBeginImageContext(newSize);
-    [image drawInRect:CGRectMake(0, 0, newSize.width, newSize.height)];
-    UIImage *resizedImage = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
     
-    result.width = [NSNumber numberWithFloat:newWidth];
-    result.height = [NSNumber numberWithFloat:newHeight];
-    result.image = resizedImage;
-    return result;
+    //最大宽度和最大高度都指定了
+    if ([maxWidth integerValue] != 0 && [maxWidth integerValue] != 0) {
+        CGFloat scaleFactor = (oldWidth > oldHeight) ? [maxWidth floatValue] / oldWidth : [maxHeight floatValue] / oldHeight;
+        
+        int newWidth = oldWidth * scaleFactor;
+        int newHeight = oldHeight * scaleFactor;
+        CGSize newSize = CGSizeMake(newWidth, newHeight);
+        
+        UIGraphicsBeginImageContext(newSize);
+        [image drawInRect:CGRectMake(0, 0, newSize.width, newSize.height)];
+        UIImage *resizedImage = UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
+        
+        result.width = [NSNumber numberWithFloat:newWidth];
+        result.height = [NSNumber numberWithFloat:newHeight];
+        result.image = resizedImage;
+        return result;
+    }
 }
 
 - (ImageResult*) compressImage:(UIImage*)image
