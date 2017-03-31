@@ -7,6 +7,7 @@
 //
 
 #import "Compression.h"
+#import "UIImage-Resize/UIImage+Resize.h"
 
 @implementation Compression
 
@@ -52,7 +53,7 @@
         //裁剪图片
         CGFloat scaledImageWidth = [maxWidth floatValue];
         CGFloat scaledImageHeight = oldHeight / oldWidth * scaledImageWidth;
-        UIImage *resizedImage = [self resizedImageToFitInSize:CGSizeMake(scaledImageWidth, scaledImageHeight) scaleIfSmaller:NO];
+        UIImage *resizedImage = [image resizedImageToFitInSize:CGSizeMake(scaledImageWidth, scaledImageHeight) scaleIfSmaller:NO];
         
         result.width = [NSNumber numberWithFloat:scaledImageWidth];
         result.height = [NSNumber numberWithFloat:scaledImageHeight];
