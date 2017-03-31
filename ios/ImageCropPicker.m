@@ -455,6 +455,7 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                              if ([[dataUTI lowercaseString] hasSuffix:@"gif"]) {//GIF图，单独处理
                                  NSString *filePath = [self persistFileWithData:imageData extension:@".gif"];
                                  if (filePath == nil) {
+                                     [lock unlock];
                                      [indicatorView stopAnimating];
                                      [overlayView removeFromSuperview];
                                      [imagePickerController dismissViewControllerAnimated:YES completion:[self waitAnimationEnd:^{
@@ -481,6 +482,7 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                                  NSString *filePath = [self persistFile:imageResult.data];
                                  
                                  if (filePath == nil) {
+                                     [lock unlock];
                                      [indicatorView stopAnimating];
                                      [overlayView removeFromSuperview];
                                      [imagePickerController dismissViewControllerAnimated:YES completion:[self waitAnimationEnd:^{
