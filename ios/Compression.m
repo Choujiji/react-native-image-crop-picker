@@ -47,10 +47,10 @@
     
     
     //指定了最大宽度
-    if ((maxWidth > 0) &&
-        (oldWidth > maxWidth)) {//需要裁剪 且 原图尺寸大于最大设定尺寸
+    if (([maxWidth integerValue] > 0) &&
+        (oldWidth > [maxWidth integerValue])) {//需要裁剪 且 原图尺寸大于最大设定尺寸
         //裁剪图片
-        CGFloat scaledImageWidth = maxWidth;
+        CGFloat scaledImageWidth = [maxWidth floatValue];
         CGFloat scaledImageHeight = oldHeight / oldWidth * scaledImageWidth;
         UIImage *resizedImage = [image resizedImageToFitInSize:CGSizeMake(scaledImageWidth, scaledImageHeight) scaleIfSmaller:NO];
         
