@@ -36,6 +36,11 @@
     NSNumber *maxHeight = [options valueForKey:@"compressImageMaxHeight"];
     ImageResult *result = [[ImageResult alloc] init];
     
+    // 首先直接赋值（防止不匹配的情况）
+    result.width = [NSNumber numberWithFloat:image.size.width];
+    result.height = [NSNumber numberWithFloat:image.size.height];
+    result.image = image;
+    
     if ([maxWidth integerValue] == 0 && [maxWidth integerValue] == 0) {
         result.width = [NSNumber numberWithFloat:image.size.width];
         result.height = [NSNumber numberWithFloat:image.size.height];
@@ -63,7 +68,7 @@
     
     
     //最大宽度和最大高度都指定了
-    if ([maxWidth integerValue] != 0 && [maxWidth integerValue] != 0) {
+    if ([maxWidth integerValue] != 0 && [maxHeight integerValue] != 0) {
         CGFloat scaleFactor = (oldWidth > oldHeight) ? [maxWidth floatValue] / oldWidth : [maxHeight floatValue] / oldHeight;
         
         int newWidth = oldWidth * scaleFactor;
