@@ -33,6 +33,9 @@
 
 #define ERROR_CANNOT_PROCESS_VIDEO_KEY @"E_CANNOT_PROCESS_VIDEO"
 #define ERROR_CANNOT_PROCESS_VIDEO_MSG @"Cannot process video data"
+// 视频超出最大长度
+#define ERROR_EXTEND_MAX_LENGTH_VIDEO_KEY @"E_EXTEND_MAX_LENGTH_VIDEO"
+#define ERROR_CANNOT_EXTEND_MAX_LENGTH_VIDEO_MSG @"Cannot extend max length video data"
 
 @implementation ImageResult
 @end
@@ -59,6 +62,7 @@ RCT_EXPORT_MODULE();
                                 @"useFrontCamera": @NO,
                                 @"compressImageQuality": @1,
                                 @"compressVideoPreset": @"MediumQuality",
+                                @"maxVideoLength": @(60 * 10), // 最大视频时长（秒）
                                 @"loadingLabelText": @"正在处理...",
                                 @"mediaType": @"any",//数据类型（photo、video、any）
                                 @"showsSelectedCount": @YES
@@ -356,6 +360,21 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
      resultHandler:^(AVAsset * asset, AVAudioMix * audioMix,
                      NSDictionary *info) {
          NSURL *sourceURL = [(AVURLAsset *)asset URL];
+         
+         // 视频时长判定
+         CMTime timeInfo = asset.duration;
+         CMTimeValue timeValue = timeInfo.value;
+         CMTimeScale timeScale = timeInfo.timescale;
+         CGFloat seconds = timeValue / timeScale;
+         NSLog(@"seconds = %f", seconds);
+         // 不能超过最大视频时长
+         NSInteger maxVideoLength = [[self.options objectForKey:@"maxVideoLength"] integerValue];
+         if (seconds > maxVideoLength) {
+             completion(@{
+                          ERROR_EXTEND_MAX_LENGTH_VIDEO_KEY: ERROR_CANNOT_EXTEND_MAX_LENGTH_VIDEO_MSG
+                          });
+             return;
+         }
 
          // create temp file
          NSString *tmpDirFullPath = [self getTmpDirectory];
@@ -368,6 +387,12 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                  AVAsset *compressedAsset = [AVAsset assetWithURL:outputURL];
                  AVAssetTrack *track = [[compressedAsset tracksWithMediaType:AVMediaTypeVideo] firstObject];
                  
+                 // 获取视频截图
+                 UIImage *thumbnail = [self getVideoThumbnailWithVideoAsset:compressedAsset];
+                 // 转换为base64字符串
+                 NSData *thumbnailData = UIImageJPEGRepresentation(thumbnail, 0.6);
+                 NSString *thumbnailDataString = [thumbnailData base64EncodedStringWithOptions:0];
+                 
                  NSNumber *fileSizeValue = nil;
                  [outputURL getResourceValue:&fileSizeValue
                                       forKey:NSURLFileSizeKey
@@ -378,12 +403,24 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                                                 withHeight:[NSNumber numberWithFloat:track.naturalSize.height]
                                                   withMime:@"video/mp4"
                                                   withSize:fileSizeValue
-                                                  withData:[NSNull null]]);
+                                                  withData:thumbnailDataString]);
              } else {
                  completion(nil);
              }
          }];
      }];
+}
+
+/** 获取视频截图 */
+- (UIImage *)getVideoThumbnailWithVideoAsset:(AVAsset *)videoAsset {
+        // 创建视频图片生成器
+    AVAssetImageGenerator *imageGenerator = [[AVAssetImageGenerator alloc] initWithAsset:videoAsset];
+    imageGenerator.appliesPreferredTrackTransform = YES; // 允许变换
+    CMTime time = CMTimeMake(0, 10);
+    NSError *error = nil;
+    CGImageRef imageRef = [imageGenerator copyCGImageAtTime:time actualTime:NULL error:&error];
+    UIImage *thumbnail = [UIImage imageWithCGImage:imageRef];
+    return thumbnail;
 }
 
 - (NSDictionary*) createAttachmentResponse:(NSString*)filePath withWidth:(NSNumber*)width withHeight:(NSNumber*)height withMime:(NSString*)mime withSize:(NSNumber*)size withData:(NSString*)data {
@@ -425,6 +462,17 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                                 [overlayView removeFromSuperview];
                                 [imagePickerController dismissViewControllerAnimated:YES completion:[self waitAnimationEnd:^{
                                     self.reject(ERROR_CANNOT_PROCESS_VIDEO_KEY, ERROR_CANNOT_PROCESS_VIDEO_MSG, nil);
+                                }]];
+                                return;
+                            }
+                            
+                            if (video[ERROR_EXTEND_MAX_LENGTH_VIDEO_KEY]
+                                && [video[ERROR_EXTEND_MAX_LENGTH_VIDEO_KEY] isEqualToString:ERROR_CANNOT_EXTEND_MAX_LENGTH_VIDEO_MSG]) {
+                                    // 视频超出了最大时间长度
+                                [indicatorView stopAnimating];
+                                [overlayView removeFromSuperview];
+                                [imagePickerController dismissViewControllerAnimated:YES completion:[self waitAnimationEnd:^{
+                                    self.reject(ERROR_EXTEND_MAX_LENGTH_VIDEO_KEY, ERROR_CANNOT_EXTEND_MAX_LENGTH_VIDEO_MSG, nil);
                                 }]];
                                 return;
                             }
@@ -527,6 +575,13 @@ RCT_EXPORT_METHOD(openCropper:(NSDictionary *)options
                         [overlayView removeFromSuperview];
                         [imagePickerController dismissViewControllerAnimated:YES completion:[self waitAnimationEnd:^{
                             if (video != nil) {
+                                // 视频超出了最大时间长度
+                                if (video[ERROR_EXTEND_MAX_LENGTH_VIDEO_KEY]
+                                    && [video[ERROR_EXTEND_MAX_LENGTH_VIDEO_KEY] isEqualToString:ERROR_CANNOT_EXTEND_MAX_LENGTH_VIDEO_MSG]) {
+                                    self.reject(ERROR_EXTEND_MAX_LENGTH_VIDEO_KEY, ERROR_CANNOT_EXTEND_MAX_LENGTH_VIDEO_MSG, nil);
+                                    return;
+                                }
+                                // 正确返回视频
                                 self.resolve(video);
                             } else {
                                 self.reject(ERROR_CANNOT_PROCESS_VIDEO_KEY, ERROR_CANNOT_PROCESS_VIDEO_MSG, nil);
